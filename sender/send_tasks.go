@@ -218,14 +218,23 @@ func forward2RrdTask(Q *list.SafeListLimited, node string, addr string, concurre
 		sema.Acquire()
 		go func(addr string, rrdItems []*rrd.GraphItem, count int) {
 			defer sema.Release()
-			err := RrdConnPools.Send(addr, rrdItems)
+
+			var err error
+			sendOk := false
+			for i := 0; i < 3; i++ { //最多重试3次
+				err = RrdConnPools.Send(addr, rrdItems)
+				if err == nil {
+					sendOk = true
+					break
+				}
+				time.Sleep(time.Millisecond * 10) //发送失败了,睡10ms
+			}
 
 			// statistics
-			if err != nil {
+			if !sendOk {
 				log.Printf("send to graph %s:%s fail: %v", node, addr, err)
 				proc.SendToRrdFailCnt.IncrBy(int64(count))
 			} else {
-				log.Printf("%v", rrdItems)
 				proc.SendToRrdCnt.IncrBy(int64(count))
 			}
 		}(addr, rrdItems, count)

@@ -39,5 +39,17 @@
         },
         "clusterMigrating": {
         }
+    },
+    "rrd": {
+        "enabled": true,
+        "batch": 200,
+        "connTimeout": 1000,
+        "callTimeout": 5000,
+        "maxConns": 32,
+        "maxIdle": 32,
+        "replicas": 500,
+        "cluster": {
+            "rrd-00" : "127.0.0.1:9090"
+        }
     }
 }

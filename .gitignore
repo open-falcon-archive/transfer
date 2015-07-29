@@ -28,6 +28,8 @@ _testmain.go
 *.log
 .idea
 .DS_Store
+
+# transfer
 /var
 /falcon-transfer*
 /cfg.json
@@ -35,3 +37,4 @@ _testmain.go
 /test/*.go
 
 gitversion
+/sender/rrd

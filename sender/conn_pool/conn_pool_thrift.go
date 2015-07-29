@@ -55,7 +55,7 @@ func (this *ThriftConnPools) Send(addr string, items []*rrd.GraphItem) error {
 	done := make(chan error)
 	go func() {
 		msg, err := cli.Send(items)
-		if err == nil && msg == "" {
+		if err == nil && (msg == "OK" || msg == "") {
 			done <- nil
 		} else {
 			done <- fmt.Errorf("%v, msg: %s", err, msg)
@@ -147,7 +147,8 @@ func createOneThriftPool(name string, address string, connTimeout time.Duration,
 
 		// transport
 		var transport thrift.TTransport
-		transport, err = thrift.NewTSocketTimeout(p.Address, connTimeout)
+		//transport, err = thrift.NewTSocketTimeout(p.Address, connTimeout)
+		transport, err = thrift.NewTSocket(p.Address)
 		if err != nil {
 			return nil, err
 		}

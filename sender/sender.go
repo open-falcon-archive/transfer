@@ -182,7 +182,6 @@ func push2RrdSendQueue(items []*cmodel.MetaData) {
 	cnt := atomic.LoadUint64(&rrdSentCnt)
 	node := cfg.Nodes[cnt%cfg.NodeSize]
 	Q := RrdQueues[node]
-	log.Println("rrd.queue", node, Q)
 
 	for _, item := range items {
 		rrdItem, err := convert2RrdGraphItem(item)
