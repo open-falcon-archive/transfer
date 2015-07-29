@@ -62,16 +62,10 @@ func socketTelnetHandle(conn net.Conn) {
 	proc.SocketRecvCnt.IncrBy(int64(len(items)))
 	proc.RecvCnt.IncrBy(int64(len(items)))
 
-	if cfg.Graph.Enabled {
-		sender.Push2GraphSendQueue(items, cfg.Graph.Migrating)
-	}
-
-	if cfg.Judge.Enabled {
-		sender.Push2JudgeSendQueue(items)
-	}
+	// push to sender's queue
+	sender.PushToSendQueue(items)
 
 	return
-
 }
 
 // example: endpoint counter timestamp value [type] [step]

@@ -132,15 +132,8 @@ func RecvMetricValues(args []*cmodel.MetricValue, reply *cmodel.TransferResponse
 		proc.HttpRecvCnt.IncrBy(cnt)
 	}
 
-	cfg := g.Config()
-
-	if cfg.Graph.Enabled {
-		sender.Push2GraphSendQueue(items, cfg.Graph.Migrating)
-	}
-
-	if cfg.Judge.Enabled {
-		sender.Push2JudgeSendQueue(items)
-	}
+	// push to sender's queue
+	sender.PushToSendQueue(items)
 
 	reply.Message = "ok"
 	reply.Total = len(args)

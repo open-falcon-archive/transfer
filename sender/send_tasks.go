@@ -4,6 +4,7 @@ import (
 	cmodel "github.com/open-falcon/common/model"
 	"github.com/open-falcon/transfer/g"
 	"github.com/open-falcon/transfer/proc"
+	rrd "github.com/open-falcon/transfer/sender/rrd"
 	nsema "github.com/toolkits/concurrent/semaphore"
 	"github.com/toolkits/container/list"
 	"log"
@@ -21,11 +22,15 @@ func startSendTasks() {
 	// init semaphore
 	judgeConcurrent := cfg.Judge.MaxIdle
 	graphConcurrent := cfg.Graph.MaxIdle
+	rrdConcurrent := cfg.Rrd.MaxIdle
 	if judgeConcurrent < 1 {
 		judgeConcurrent = 1
 	}
 	if graphConcurrent < 1 {
 		graphConcurrent = 1
+	}
+	if rrdConcurrent < 1 {
+		rrdConcurrent = 1
 	}
 
 	// init send go-routines
@@ -48,6 +53,11 @@ func startSendTasks() {
 				go forward2GraphMigratingTask(queue, node, addr, graphConcurrent)
 			}
 		}
+	}
+
+	for node, addr := range cfg.Rrd.Cluster {
+		queue := RrdQueues[node]
+		go forward2RrdTask(queue, node, addr, rrdConcurrent)
 	}
 }
 
@@ -185,5 +195,39 @@ func forward2GraphMigratingTask(Q *list.SafeListLimited, node string, addr strin
 				proc.SendToGraphMigratingCnt.IncrBy(int64(count))
 			}
 		}(addr, graphItems, count)
+	}
+}
+
+func forward2RrdTask(Q *list.SafeListLimited, node string, addr string, concurrent int) {
+	batch := g.Config().Rrd.Batch
+	sema := nsema.NewSemaphore(concurrent)
+
+	for {
+		items := Q.PopBackBy(batch)
+		count := len(items)
+		if count == 0 {
+			time.Sleep(DefaultSendTaskSleepInterval)
+			continue
+		}
+
+		rrdItems := make([]*rrd.GraphItem, count)
+		for i := 0; i < count; i++ {
+			rrdItems[i] = items[i].(*rrd.GraphItem)
+		}
+
+		sema.Acquire()
+		go func(addr string, rrdItems []*rrd.GraphItem, count int) {
+			defer sema.Release()
+			err := RrdConnPools.Send(addr, rrdItems)
+
+			// statistics
+			if err != nil {
+				log.Printf("send to graph %s:%s fail: %v", node, addr, err)
+				proc.SendToRrdFailCnt.IncrBy(int64(count))
+			} else {
+				log.Printf("%v", rrdItems)
+				proc.SendToRrdCnt.IncrBy(int64(count))
+			}
+		}(addr, rrdItems, count)
 	}
 }

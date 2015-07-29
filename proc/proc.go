@@ -26,19 +26,23 @@ var (
 	SendToJudgeCnt          = nproc.NewSCounterQps("SendToJudgeCnt")
 	SendToGraphCnt          = nproc.NewSCounterQps("SendToGraphCnt")
 	SendToGraphMigratingCnt = nproc.NewSCounterQps("SendToGraphMigratingCnt")
+	SendToRrdCnt            = nproc.NewSCounterQps("SendToRrdCnt")
 
 	SendToJudgeDropCnt          = nproc.NewSCounterQps("SendToJudgeDropCnt")
 	SendToGraphDropCnt          = nproc.NewSCounterQps("SendToGraphDropCnt")
 	SendToGraphMigratingDropCnt = nproc.NewSCounterQps("SendToGraphMigratingDropCnt")
+	SendToRrdDropCnt            = nproc.NewSCounterQps("SendToRrdDropCnt")
 
 	SendToJudgeFailCnt          = nproc.NewSCounterQps("SendToJudgeFailCnt")
 	SendToGraphFailCnt          = nproc.NewSCounterQps("SendToGraphFailCnt")
 	SendToGraphMigratingFailCnt = nproc.NewSCounterQps("SendToGraphMigratingFailCnt")
+	SendToRrdFailCnt            = nproc.NewSCounterQps("SendToRrdFailCnt")
 
 	// 发送缓存大小
 	JudgeQueuesCnt          = nproc.NewSCounterBase("JudgeSendCacheCnt")
 	GraphQueuesCnt          = nproc.NewSCounterBase("GraphSendCacheCnt")
 	GraphMigratingQueuesCnt = nproc.NewSCounterBase("GraphMigratingCacheCnt")
+	RrdQueuesCnt            = nproc.NewSCounterBase("RrdQueuesCnt")
 )
 
 func Start() {
@@ -58,21 +62,25 @@ func GetAll() []interface{} {
 	ret = append(ret, SendToJudgeCnt.Get())
 	ret = append(ret, SendToGraphCnt.Get())
 	ret = append(ret, SendToGraphMigratingCnt.Get())
+	ret = append(ret, SendToRrdCnt.Get())
 
 	// drop cnt
 	ret = append(ret, SendToJudgeDropCnt.Get())
 	ret = append(ret, SendToGraphDropCnt.Get())
 	ret = append(ret, SendToGraphMigratingDropCnt.Get())
+	ret = append(ret, SendToRrdDropCnt.Get())
 
 	// send fail cnt
 	ret = append(ret, SendToJudgeFailCnt.Get())
 	ret = append(ret, SendToGraphFailCnt.Get())
 	ret = append(ret, SendToGraphMigratingFailCnt.Get())
+	ret = append(ret, SendToRrdFailCnt.Get())
 
 	// cache cnt
 	ret = append(ret, JudgeQueuesCnt.Get())
 	ret = append(ret, GraphQueuesCnt.Get())
 	ret = append(ret, GraphMigratingQueuesCnt.Get())
+	ret = append(ret, RrdQueuesCnt.Get())
 
 	return ret
 }

@@ -53,6 +53,20 @@ type GraphConfig struct {
 	ClusterMigrating2 map[string]*ClusterNode `json:"clusterMigrating2"`
 }
 
+type RrdConfig struct {
+	Enabled     bool              `json:"enabled"`
+	Batch       int               `json:"batch"`
+	ConnTimeout int               `json:"connTimeout"`
+	CallTimeout int               `json:"callTimeout"`
+	PingMethod  string            `json:"pingMethod"`
+	MaxConns    int               `json:"maxConns"`
+	MaxIdle     int               `json:"maxIdle"`
+	Replicas    int               `json:"replicas"`
+	Cluster     map[string]string `json:"cluster"`
+	Nodes       []string          `json:"nodes"`
+	NodeSize    uint64            `json:"nodeSize"`
+}
+
 type GlobalConfig struct {
 	Debug  bool          `json:"debug"`
 	Http   *HttpConfig   `json:"http"`
@@ -60,6 +74,7 @@ type GlobalConfig struct {
 	Socket *SocketConfig `json:"socket"`
 	Judge  *JudgeConfig  `json:"judge"`
 	Graph  *GraphConfig  `json:"graph"`
+	Rrd    *RrdConfig    `json:"rrd"`
 }
 
 var (
@@ -101,11 +116,29 @@ func ParseConfig(cfg string) {
 	c.Graph.Cluster2 = formatClusterItems(c.Graph.Cluster)
 	c.Graph.ClusterMigrating2 = formatClusterItems(c.Graph.ClusterMigrating)
 
+	// rrd addrs
+	c.Rrd.Nodes = keySliceOfMap(c.Rrd.Cluster)
+	c.Rrd.NodeSize = uint64(len(c.Rrd.Nodes))
+
+	// check
+	if !checkConfig(c) {
+		log.Fatalln("bad cfg")
+	}
+
 	configLock.Lock()
 	defer configLock.Unlock()
 	config = &c
 
 	log.Println("g.ParseConfig ok, file ", cfg)
+}
+
+// check
+func checkConfig(c GlobalConfig) bool {
+	if c.Rrd.Enabled && c.Rrd.NodeSize < 1 {
+		return false
+	}
+
+	return true
 }
 
 // CLUSTER NODE
@@ -129,5 +162,13 @@ func formatClusterItems(cluster map[string]string) map[string]*ClusterNode {
 		ret[node] = NewClusterNode(nitems)
 	}
 
+	return ret
+}
+
+func keySliceOfMap(mapv map[string]string) []string {
+	ret := make([]string, 0)
+	for key, _ := range mapv {
+		ret = append(ret, key)
+	}
 	return ret
 }

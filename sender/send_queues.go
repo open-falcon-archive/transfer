@@ -27,4 +27,9 @@ func initSendQueues() {
 			}
 		}
 	}
+
+	for node, _ := range cfg.Rrd.Cluster {
+		Q := nlist.NewSafeListLimited(DefaultSendQueueMaxSize)
+		RrdQueues[node] = Q
+	}
 }

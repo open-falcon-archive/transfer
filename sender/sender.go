@@ -3,11 +3,14 @@ package sender
 import (
 	"fmt"
 	cmodel "github.com/open-falcon/common/model"
+	cutils "github.com/open-falcon/common/utils"
 	"github.com/open-falcon/transfer/g"
 	"github.com/open-falcon/transfer/proc"
 	cpool "github.com/open-falcon/transfer/sender/conn_pool"
+	rrd "github.com/open-falcon/transfer/sender/rrd"
 	nlist "github.com/toolkits/container/list"
 	"log"
+	"sync/atomic"
 )
 
 const (
@@ -28,6 +31,7 @@ var (
 	JudgeQueues          = make(map[string]*nlist.SafeListLimited)
 	GraphQueues          = make(map[string]*nlist.SafeListLimited)
 	GraphMigratingQueues = make(map[string]*nlist.SafeListLimited)
+	RrdQueues            = make(map[string]*nlist.SafeListLimited)
 )
 
 // 连接池
@@ -36,6 +40,12 @@ var (
 	JudgeConnPools          *cpool.SafeRpcConnPools
 	GraphConnPools          *cpool.SafeRpcConnPools
 	GraphMigratingConnPools *cpool.SafeRpcConnPools
+	RrdConnPools            *cpool.ThriftConnPools
+)
+
+// 局部变量
+var (
+	rrdSentCnt uint64 = 0
 )
 
 // 初始化数据发送服务, 在main函数中调用
@@ -49,8 +59,25 @@ func Start() {
 	log.Println("send.Start, ok")
 }
 
+// Push Items to Sender's Queue
+func PushToSendQueue(items []*cmodel.MetaData) {
+	cfg := g.Config()
+
+	if cfg.Graph.Enabled {
+		push2GraphSendQueue(items, cfg.Graph.Migrating)
+	}
+
+	if cfg.Judge.Enabled {
+		push2JudgeSendQueue(items)
+	}
+
+	if cfg.Rrd.Enabled {
+		push2RrdSendQueue(items)
+	}
+}
+
 // 将数据 打入 某个Judge的发送缓存队列, 具体是哪一个Judge 由一致性哈希 决定
-func Push2JudgeSendQueue(items []*cmodel.MetaData) {
+func push2JudgeSendQueue(items []*cmodel.MetaData) {
 	for _, item := range items {
 		pk := item.PK()
 		node, err := JudgeNodeRing.GetNode(pk)
@@ -86,7 +113,7 @@ func Push2JudgeSendQueue(items []*cmodel.MetaData) {
 
 // 将数据 打入 某个Graph的发送缓存队列, 具体是哪一个Graph 由一致性哈希 决定
 // 如果正在数据迁移, 数据除了打到原有配置上 还要向新的配置上打一份(新老重叠时要去重,防止将一条数据向一台Graph上打两次)
-func Push2GraphSendQueue(items []*cmodel.MetaData, migrating bool) {
+func push2GraphSendQueue(items []*cmodel.MetaData, migrating bool) {
 	cfg := g.Config().Graph
 
 	for _, item := range items {
@@ -147,6 +174,31 @@ func Push2GraphSendQueue(items []*cmodel.MetaData, migrating bool) {
 	}
 }
 
+func push2RrdSendQueue(items []*cmodel.MetaData) {
+	cfg := g.Config().Rrd
+
+	// round robin
+	atomic.AddUint64(&rrdSentCnt, 1)
+	cnt := atomic.LoadUint64(&rrdSentCnt)
+	node := cfg.Nodes[cnt%cfg.NodeSize]
+	Q := RrdQueues[node]
+	log.Println("rrd.queue", node, Q)
+
+	for _, item := range items {
+		rrdItem, err := convert2RrdGraphItem(item)
+		if err != nil {
+			log.Println("convert2RrdGraphItem error", err)
+			continue
+		}
+		isOk := Q.PushFront(rrdItem)
+
+		// statistics
+		if !isOk {
+			proc.SendToRrdDropCnt.Incr()
+		}
+	}
+}
+
 // 打到Graph的数据,要根据rrdtool的特定 来限制 step、counterType、timestamp
 func convert2GraphItem(d *cmodel.MetaData) (*cmodel.GraphItem, error) {
 	item := &cmodel.GraphItem{}
@@ -180,6 +232,37 @@ func convert2GraphItem(d *cmodel.MetaData) (*cmodel.GraphItem, error) {
 
 	item.Timestamp = alignTs(item.Timestamp, int64(item.Step)) //item.Timestamp - item.Timestamp%int64(item.Step)
 
+	return item, nil
+}
+
+func convert2RrdGraphItem(d *cmodel.MetaData) (*rrd.GraphItem, error) {
+	item := &rrd.GraphItem{}
+	item.UUID = cutils.ChecksumOfUUID(d.Endpoint, d.Metric, d.Tags, d.CounterType, d.Step)
+	item.Value = float64(d.Value)
+	item.Timestamp = d.Timestamp
+	item.Step = int32(d.Step)
+	if item.Step < int32(g.MIN_STEP) {
+		item.Step = int32(g.MIN_STEP)
+	}
+	item.Heartbeat = int32(item.Step * 2)
+
+	if d.CounterType == g.GAUGE {
+		item.DsType = d.CounterType
+		item.Min = "U"
+		item.Max = "U"
+	} else if d.CounterType == g.COUNTER {
+		item.DsType = g.DERIVE
+		item.Min = "0"
+		item.Max = "U"
+	} else if d.CounterType == g.DERIVE {
+		item.DsType = g.DERIVE
+		item.Min = "0"
+		item.Max = "U"
+	} else {
+		return item, fmt.Errorf("not_supported_counter_type")
+	}
+
+	item.Timestamp = alignTs(item.Timestamp, int64(item.Step))
 	return item, nil
 }
 

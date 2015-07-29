@@ -37,10 +37,21 @@ func initConnPools() {
 		GraphMigratingConnPools = cpool.CreateSafeRpcConnPools(cfg.Graph.MaxConns, cfg.Graph.MaxIdle,
 			cfg.Graph.ConnTimeout, cfg.Graph.CallTimeout, graphMigratingInstances.ToSlice())
 	}
+
+	// rrd
+	rrdInstances := nset.NewStringSet()
+	for _, instance := range cfg.Rrd.Cluster {
+		rrdInstances.Add(instance)
+	}
+	// protocal: binary, json, simplejson, compact
+	RrdConnPools = cpool.NewThriftConnPools(cfg.Rrd.MaxConns, cfg.Rrd.MaxIdle,
+		cfg.Rrd.ConnTimeout, cfg.Rrd.CallTimeout, rrdInstances.ToSlice(), "binary")
+
 }
 
 func DestroyConnPools() {
 	JudgeConnPools.Destroy()
 	GraphConnPools.Destroy()
 	GraphMigratingConnPools.Destroy()
+	RrdConnPools.Destroy()
 }

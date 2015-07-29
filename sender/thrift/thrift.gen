@@ -1,0 +1,1 @@
+thrift -I ./ -out ../ -r --gen go:thrift_import=github.com/niean/thrift/lib/go/thrift ./rrd.thrift
