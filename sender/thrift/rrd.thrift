@@ -61,5 +61,5 @@ service RRDHBaseBackend {
   // 批量查询接口. 查询指定时间段内的数据、支持指定归档函数
   list<QueryResponse> query(1:list<QueryRequest> requests),
   // 最新数据查询接口. 查询指定数据项 最新上报的数据, COUNTER类型取差值、GAUGE类型取原值, 支持批量查询
-  list<LastResponse> last(1:list<LastRequest> request)
+  list<LastResponse> last(1:list<LastRequest> requests)
 }

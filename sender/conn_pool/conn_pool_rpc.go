@@ -2,6 +2,7 @@ package conn_pool
 
 import (
 	"fmt"
+	spool "github.com/toolkits/pool/simple_conn_pool"
 	"net"
 	"net/rpc"
 	"sync"
@@ -38,7 +39,7 @@ func (this RpcClient) Call(method string, args interface{}, reply interface{}) e
 // ConnPools Manager
 type SafeRpcConnPools struct {
 	sync.RWMutex
-	M           map[string]*ConnPool
+	M           map[string]*spool.ConnPool
 	MaxConns    int
 	MaxIdle     int
 	ConnTimeout int
@@ -46,7 +47,7 @@ type SafeRpcConnPools struct {
 }
 
 func CreateSafeRpcConnPools(maxConns, maxIdle, connTimeout, callTimeout int, cluster []string) *SafeRpcConnPools {
-	cp := &SafeRpcConnPools{M: make(map[string]*ConnPool), MaxConns: maxConns, MaxIdle: maxIdle,
+	cp := &SafeRpcConnPools{M: make(map[string]*spool.ConnPool), MaxConns: maxConns, MaxIdle: maxIdle,
 		ConnTimeout: connTimeout, CallTimeout: callTimeout}
 
 	ct := time.Duration(cp.ConnTimeout) * time.Millisecond
@@ -103,7 +104,7 @@ func (this *SafeRpcConnPools) Call(addr, method string, args interface{}, resp i
 	}
 }
 
-func (this *SafeRpcConnPools) Get(address string) (*ConnPool, bool) {
+func (this *SafeRpcConnPools) Get(address string) (*spool.ConnPool, bool) {
 	this.RLock()
 	defer this.RUnlock()
 	p, exists := this.M[address]
@@ -124,9 +125,9 @@ func (this *SafeRpcConnPools) Destroy() {
 	}
 }
 
-func createOnePool(name string, address string, connTimeout time.Duration, maxConns int, maxIdle int) *ConnPool {
-	p := NewConnPool(name, address, maxConns, maxIdle)
-	p.New = func(connName string) (NConn, error) {
+func createOnePool(name string, address string, connTimeout time.Duration, maxConns int, maxIdle int) *spool.ConnPool {
+	p := spool.NewConnPool(name, address, maxConns, maxIdle)
+	p.New = func(connName string) (spool.NConn, error) {
 		_, err := net.ResolveTCPAddr("tcp", p.Address)
 		if err != nil {
 			//log.Println(p.Address, "format error", err)
